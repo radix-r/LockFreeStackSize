@@ -18,6 +18,14 @@
  * The lack of locks in this implementation guarantees that at least one method call finishes in a finite number
  * of steps. I use exponential backoff instead a queuing structure so fairness is not guaranted.
  *
+ *
+ * To Do
+ * -----
+ * Descriptor
+ *  WriteDescriptor
+ * resize()
+ * push()
+ * pop()
  * */
 
 
@@ -33,23 +41,15 @@ public class LockFreeStack<T> {
     private AtomicInteger numOps;
     private static final int MIN_SLEEP = 2; // min sleep time in ms
     private static final int MAX_SLEEP = 20000; // max sleep time in ms
+    public AtomicReference<Descriptor<T>> disc;
 
 
 
-    class Node<T>{
-        public T val;
-        public Node next;
-
-        public Node(T val){
-            this.val = val;
-            next = null;
-
-        }
-    }
 
     public LockFreeStack(){
        this.numOps = new AtomicInteger(0);
        this.head = new AtomicReference<Node>(null);
+       this.disc = new AtomicReference<Descriptor<T>>(new Descriptor<T>());
     }
 
 
