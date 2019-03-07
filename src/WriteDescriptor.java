@@ -3,14 +3,16 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class WriteDescriptor<T>{
     public T oldValue;
     public T newValue;
-    public Node<T> location;
-    public AtomicBoolean done;
+    public int location;
+    public boolean done;
+    public AtomicBoolean pending;
 
-    WriteDescriptor(T oldV, T newV, Node<T> loc){
+    WriteDescriptor(T oldV, T newV, int loc){
         oldValue = oldV;
         newValue = newV;
         location =  loc;
-        done.set(false);
+        this.done = false;
+        this.pending = new AtomicBoolean(false);
 
     }
 
