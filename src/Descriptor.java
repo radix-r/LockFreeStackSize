@@ -6,10 +6,10 @@ public class Descriptor<T>{
     public AtomicInteger counter;
     public AtomicReference<WriteDescriptor<T>> writeDescriptor;
 
-    Descriptor(){
-        this.size = new AtomicInteger(0) ;
+    Descriptor(int size, WriteDescriptor<T> writeOp){
+        this.size = new AtomicInteger(size) ;
         this.counter = new AtomicInteger(0);
-        this.writeDescriptor= new AtomicReference<>(null) ;
+        this.writeDescriptor= new AtomicReference<>(writeOp) ;
 
 
     }

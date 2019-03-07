@@ -7,10 +7,16 @@ public class LockFreeStackTest {
 
     @Test
     public void push() {
+        LockFreeStack lfs = new LockFreeStack(Integer.class);
+        lfs.push(5);
+
+        int out = (int)lfs.at(0).get();
+        Assert.assertEquals("push 5",5, out);
     }
 
     @Test
     public void pop() {
+
     }
 
     @Test

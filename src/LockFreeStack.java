@@ -57,11 +57,12 @@ public class LockFreeStack<T> {
         this.numOps = new AtomicInteger(0);
         this.memory = new AtomicReferenceArray<AtomicReference<T>[]>(32);
         //@SuppressWarnings("unchecked")
-        AtomicReference<T> dummy = new AtomicReference<T>();
-        this.memory.set(0,(AtomicReference<T>[]) Array.newInstance(dummy.getClass(),2));
+        allocBucket(0);
+        //AtomicReference<T> dummy = new AtomicReference<T>();
+        //this.memory.set(0,(AtomicReference<T>[]) Array.newInstance(dummy.getClass(),2));
         //this.memory.set(0,new AtomicReferenceArray<T>(2));
 
-        this.desc = new AtomicReference<Descriptor<T>>(new Descriptor<T>());
+        this.desc = new AtomicReference<Descriptor<T>>(new Descriptor<T>(0,null));
 
     }
 
@@ -81,13 +82,35 @@ public class LockFreeStack<T> {
     }
 
     /**
+     * Allocates more memory in array at index "bucket"
+     *
+     * */
+    private void allocBucket(int bucket){
+
+        // overflows at about 2 billion elements
+        if (bucket >=31){
+            throw new StackOverflowError();
+        }
+        int bucketSize = 1<<bucket+1;
+
+        AtomicReference<T> dummy = new AtomicReference<T>();
+        AtomicReference<T>[] newBucket = (AtomicReference<T>[]) Array.newInstance(dummy.getClass(),bucketSize);
+        for (int i = 0; i< bucketSize; i++){
+            newBucket[i] = new AtomicReference<T>(null);
+        }
+        this.memory.set(bucket,newBucket);
+
+    }
+
+    /**
      * Returns value at given index
     * */
-    private AtomicReference<T> at(int i){
+    protected AtomicReference<T> at(int i){
         int pos = i + FBS;
         int hiBit = highestBit(pos);
         int index = pos ^ (1<<hiBit);
-        return memory.get(hiBit-highestBit(FBS))[index];
+        int bucket = hiBit-highestBit(FBS);
+        return memory.get(bucket)[index];
     }
 
 
@@ -120,17 +143,29 @@ public class LockFreeStack<T> {
     }
 
     protected boolean tryPush(T n){
-        Descriptor<T> descCurr = desc.get();
+        Descriptor<T> descCurr;
+        Descriptor<T> descNext;
+
+        descCurr = desc.get();
 
         WriteDescriptor<T> pending = descCurr.writeDescriptor.get();
-        if (pending != null){
+        if (pending != null) {
             completeWrite(pending);
         }
 
 
-        int bucket = highestBit(descCurr.size.get()+FBS)-highestBit(FBS);
+        int bucket = highestBit(descCurr.size.get() + FBS) - highestBit(FBS);
 
-        return false;
+        if (memory.get(bucket) == null) {
+            allocBucket(bucket);
+        }
+        T old = at(desc.get().size.get()).get();
+        WriteDescriptor<T> writeOp = new WriteDescriptor<T>(old, n, desc.get().size.get());
+
+        descNext = new Descriptor<T>(descCurr.size.get() + 1, writeOp);
+        descNext.writeDescriptor.get().pending.set(true);
+        return desc.compareAndSet(descCurr, descNext);
+
     }
 
     public void push(T p){
@@ -140,6 +175,7 @@ public class LockFreeStack<T> {
         while(true){
             if(tryPush(p)){
                 // push successful
+                completeWrite(desc.get().writeDescriptor.get());
                 numOps.getAndIncrement();
                 return;
             }else{
