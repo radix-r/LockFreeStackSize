@@ -32,7 +32,7 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 public class LockFreeStack<T> {
 
 
-    private AtomicReferenceArray<AtomicReference<T>[]> memory;
+    private AtomicReferenceArray<AtomicReferenceArray<AtomicReference<T>>> memory;
     private AtomicInteger numOps;
     private AtomicInteger size;
     //private AtomicInteger numPush; // incremented on push
@@ -55,7 +55,7 @@ public class LockFreeStack<T> {
         //this.numPush = new AtomicInteger(0);
         //this.numPop = new AtomicInteger(0);
         this.numOps = new AtomicInteger(0);
-        this.memory = new AtomicReferenceArray<AtomicReference<T>[]>(32);
+        this.memory = new AtomicReferenceArray<AtomicReferenceArray<AtomicReference<T>>>(32);
         //@SuppressWarnings("unchecked")
         allocBucket(0);
         //AtomicReference<T> dummy = new AtomicReference<T>();
@@ -93,12 +93,16 @@ public class LockFreeStack<T> {
         }
         int bucketSize = 1<<bucket+1;
 
-        AtomicReference<T> dummy = new AtomicReference<T>();
-        AtomicReference<T>[] newBucket = (AtomicReference<T>[]) Array.newInstance(dummy.getClass(),bucketSize);
+        // AtomicReference<T> dummy = new AtomicReference<T>();
+        // AtomicReference<T>[] newBucket = (AtomicReference<T>[]) Array.newInstance(dummy.getClass(),bucketSize);
+        AtomicReferenceArray<AtomicReference<T>> newBucket = new AtomicReferenceArray<AtomicReference<T>>(bucketSize);
+
+
         for (int i = 0; i< bucketSize; i++){
-            newBucket[i] = new AtomicReference<T>(null);
+            newBucket.set(i, new AtomicReference<T>(null));
         }
-        this.memory.set(bucket,newBucket);
+
+        this.memory.compareAndSet(bucket,null,newBucket);
 
     }
 
@@ -110,7 +114,7 @@ public class LockFreeStack<T> {
         int hiBit = highestBit(pos);
         int index = pos ^ (1<<hiBit);
         int bucket = hiBit-highestBit(FBS);
-        return memory.get(bucket)[index];
+        return memory.get(bucket).get(index);
     }
 
 
