@@ -34,7 +34,7 @@ public class LockFreeStack<T> {
 
     private AtomicReferenceArray<AtomicReferenceArray<AtomicReference<T>>> memory;
     private AtomicInteger numOps;
-    private AtomicInteger size;
+    //private AtomicInteger size;
     //private AtomicInteger numPush; // incremented on push
     //private AtomicInteger numPop;
     private static final int MIN_SLEEP = 2; // min sleep time in ms
@@ -51,7 +51,7 @@ public class LockFreeStack<T> {
      * into array. Class<T> type
      * */
     public LockFreeStack(Class<T> type){
-        this.size = new AtomicInteger(0);
+        //this.size = new AtomicInteger(0);
         //this.numPush = new AtomicInteger(0);
         //this.numPop = new AtomicInteger(0);
         this.numOps = new AtomicInteger(0);
@@ -107,7 +107,7 @@ public class LockFreeStack<T> {
     }
 
     /**
-     * Returns value at given index
+     * Returns atomic reff at given index
     * */
     protected AtomicReference<T> at(int i){
         int pos = i + FBS;
@@ -139,13 +139,19 @@ public class LockFreeStack<T> {
     }
 
     private void completeWrite(WriteDescriptor<T> w){
-        if (w.pending.get()){
+        /*if (w == null){
+            throw new EmptyStackException();
+        }*/
+        if (w!=null && w.pending.get()){
             at(w.location).compareAndSet(w.oldValue,w.newValue);
             w.pending.set(false);
         }
 
     }
 
+    /**
+     * Complete any pending ops, if any, and attempt to push input value n onto stack. Returns result of CAS
+     * */
     protected boolean tryPush(T n){
         Descriptor<T> descCurr;
         Descriptor<T> descNext;
@@ -172,6 +178,9 @@ public class LockFreeStack<T> {
 
     }
 
+    /**
+     * Attempt push operation continuously tries until successful. Backs off exponentially on each failure.
+     * */
     public void push(T p){
 
         //Node n = new Node(p);
@@ -191,23 +200,25 @@ public class LockFreeStack<T> {
 
     protected T tryPop()throws EmptyStackException{
 
-        Descriptor descCurr = desc.get();
-
-        return null;
-        /*
-        if (oldHead == null){
-            //lock.unlock();
-            throw new EmptyStackException();
+        Descriptor<T> descCurr = desc.get();
+        WriteDescriptor<T> pending = descCurr.writeDescriptor.get();
+        if (pending != null) {
+            completeWrite(pending);
         }
 
-        Node newHead = oldHead.next;
-
-        if(head.compareAndSet(oldHead,newHead)){
-            return oldHead;
+        int s =desc.get().size.get()-1;
+        if (s<0){
+            // block until push makes stack not empty
+            return null;
+        }
+        T elem = at(s).get();
+        Descriptor<T> descNext = new Descriptor<T>(desc.get().size.get()-1,null);
+        if (desc.compareAndSet(descCurr,descNext)){
+            return elem;
         }else{
             return null;
         }
-        */
+
     }
 
     public T pop() throws EmptyStackException {
@@ -226,12 +237,25 @@ public class LockFreeStack<T> {
 
     }
 
+    public T getAtIndex(int i){
+        return at(i).get();
+    }
+
     public int getNumOps(){
         return numOps.get();
     }
 
     public int getSize(){
-        return this.desc.get().size.get();
+
+        Descriptor<T> d =desc.get();
+        int size = d.size.get();
+
+        WriteDescriptor wd = d.writeDescriptor.get();
+        if (wd != null && wd.pending.get()){
+            size -=1;
+        }
+
+        return size;
     }
 
     /**
