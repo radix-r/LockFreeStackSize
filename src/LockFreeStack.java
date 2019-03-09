@@ -179,7 +179,7 @@ public class LockFreeStack<T> {
     }
 
     /**
-     * Attempt push operation continuously tries until successful. Backs off exponentially on each failure.
+     * Attempt push operation continuously tries until successful. Backs off exponentially on each failure. performance
      * */
     public void push(T p){
 
